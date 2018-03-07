@@ -2,14 +2,31 @@ package ftps;
 
 public class CommandFactory {
 
-	public static Command createCommand(String type) {
-		String result=CommandType.USER.getValue();
-		switch(type)
-		{
-			case "":new UserCommand();
-			
-			default :return null;
+	public static Command createCommand(String name) {
+		try {
+			CommandType type=Enum.valueOf(CommandType.class, name.toUpperCase());
+			switch(type)
+			{
+				case USER:return new UserCommand();
+				
+				case PASS:return new PassCommand();
+				
+				case QUIT:return new QuitCommand();
+				
+				case CWD:return new CwdCommand();
+				
+				case LS:return new DirCommand();
+				
+				case LIST:return new DirCommand();
+				
+				case GET:return new GetCommand();
+				
+				default :return null;
+			}
+		} catch (Exception e) {
+			    return null;
 		}
+		
 		
 	}
 }

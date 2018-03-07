@@ -3,11 +3,11 @@ package ftps;
 public enum CommandType {
 	USER("USER"),PASS("PASS"),LIST("LIST"),
 	PORT("PORT"),QUIT("QUIT"),CWD("CWD"),
-	GET("GET"),STOR("STOR");
+	GET("GET"),STOR("STOR"),LS("LS");
 	
 	private String value;
 
-	private CommandType(String value) {
+	CommandType(String value) {
 		this.value=value;
 	}
 
@@ -17,6 +17,7 @@ public enum CommandType {
 	public String getValue() {
 		return value;
 	}
+	
 	
 	
 	

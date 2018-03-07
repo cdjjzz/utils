@@ -16,7 +16,7 @@ public class Call implements Callable<Socket>{
 	
 	private  int count=0;
 	
-	public static ThreadLocal<UserInfo> currtUser =new ThreadLocal<UserInfo>();  
+	public  ThreadLocal<UserInfo> currtUser =new ThreadLocal<UserInfo>();  
 	
 	public Call(Socket socket) {
 		this.socket=socket;
@@ -28,7 +28,7 @@ public class Call implements Callable<Socket>{
          BufferedReader reader;  
         try {  
               reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));    
-              Writer writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));  
+              Writer writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"utf-8"));  
               while(true) {  
                   //第一次访问，输入流里面是没有东西的，所以会阻塞住  
                   if(count == 0)   
@@ -46,24 +46,35 @@ public class Call implements Callable<Socket>{
                           if(command !=null) {  
                               String[] datas = command.split(" ");  
                               Command commandSolver = CommandFactory.createCommand(datas[0]);   
-                              //登录验证,在没有登录的情况下，无法使用除了user,pass之外的命令  
-                              if(commandSolver instanceof UserCommand) {  
-                                      String data = "";  
-                                      if(datas.length >=2) {  
-                                          data = datas[1];  
-                                      }  
-                                      commandSolver.getResult(data, writer,this);  
-                                  }  
-                              }else{  
-                                  writer.write("532 执行该命令需要登录，请登录后再执行相应的操作\r\n");  
-                                  writer.flush();  
+                              if(commandSolver==null){
+                            	  writer.write("532 命名错误\r\n");
+                            	  writer.flush();  
+                              }else{
+                              //登录验证,在没有登录的情况下，无法使用除了user,pass,quit之外的命令  
+                        	  String data = "";  
+                              if(datas.length >=2) {  
+                                  data = datas[1];  
                               }  
-                          } else {  
-                          //连接已经关闭，这个线程不再有存在的必要  
-                          break;  
+                              if(commandSolver instanceof UserCommand 
+                            		  || commandSolver instanceof PassCommand
+                            		  || commandSolver instanceof QuitCommand) {  
+                                      commandSolver.getResult(data, writer,this);  
+                                  }else{  
+                                 if(isLogin()){
+                                	 commandSolver.getResult(data, writer,this);  
+                                 }else{
+                                	 currtUser.set(null);
+                                	 writer.write("532 执行该命令需要登录，请登录后再执行相应的操作\r\n");  
+                                     writer.flush();   
+                                 }
+                              }  
                       }  
-                  }  
-              }  
+                      }  
+                    }else{
+                    	break;
+                    }
+                  }
+              }
               
         } catch (IOException e) {  
             e.printStackTrace();  
@@ -73,4 +84,23 @@ public class Call implements Callable<Socket>{
         }  
 		return null;
 	}
+	
+	public  boolean isLogin(){
+	  UserInfo  userInfo=currtUser.get();
+	  if(userInfo.isLogined()){
+		  return true;
+	  }
+	  return false;
+		
+	}
+
+	public Socket getSocket() {
+		return socket;
+	}
+
+	public void setSocket(Socket socket) {
+		this.socket = socket;
+	}
+	
+	
 }

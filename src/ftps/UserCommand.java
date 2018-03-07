@@ -12,23 +12,23 @@ public class UserCommand implements Command{
 		String response="";
 		while(userInfos.hasNext()){
 			UserInfo  userInfo=userInfos.next();
-			if(userInfo.getName().contains(data)){
-				 Call.currtUser.set(userInfo);
-				 write(writer, "331");
+			if(userInfo.getName().equals(data)){
+				 t.currtUser.set(userInfo);
+				 write(writer, "331 请输入密码");
 				 return;
 			}else{
-				response="501";
+				response="501 不存在该用户";
 			}
 		}
 		Iterator<UserInfo> userInfs=GlobaInfo.no_login.iterator();
 		while(userInfs.hasNext()){
 			UserInfo  userInfo=userInfs.next();
-			if(userInfo.getName().contains(data)){
-				 Call.currtUser.set(userInfo);
-				 write(writer, "331");
+			if(userInfo.getName().equals(data)){
+				 t.currtUser.set(userInfo);
+				 write(writer, "331 请输入密码");
 				 return;
 			}else{
-				response="501";
+				response="501 不存在该用户";
 			}
 		}
 		write(writer, response);
