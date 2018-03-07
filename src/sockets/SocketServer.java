@@ -22,7 +22,11 @@ import java.util.concurrent.Executors;
 
 import props.Infos;
 import props.LocalString;
-
+/**
+ * 使用telnet 进行测试
+ * @author pet-lsf
+ *
+ */
 public class SocketServer {
 	ServerSocket serverSocket=null;
 	InetAddress inetAddress=null;
