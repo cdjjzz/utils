@@ -21,6 +21,10 @@ public class CommandFactory {
 				
 				case GET:return new GetCommand();
 				
+				case PORT:return new PortCommand();
+				
+				case STOR:return new StoreCommand();
+				
 				default :return null;
 			}
 		} catch (Exception e) {

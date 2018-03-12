@@ -18,6 +18,7 @@ public class FTPServer {
 		while(true){
 			try {
 				Socket socket=serverSocket.accept();
+				socket.setSoTimeout(1000000000);
 				executorService.submit(new  Call(socket));
 			} catch (Exception e) {
 			}
@@ -29,6 +30,7 @@ public class FTPServer {
     	try {
     		int port =Infos.getInfoByKey(new LocalString("ftp_port"));
     		serverSocket=new ServerSocket(port);
+			serverSocket.setSoTimeout(1000000000);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

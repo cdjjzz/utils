@@ -1,5 +1,6 @@
 package ftps;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -17,11 +18,9 @@ public class StoreCommand implements Command{
 				writer.write("150 Binary data connection\r\n"); 
 				writer.flush();
 				RandomAccessFile inFile = new 
-				RandomAccessFile(userInfo.getPath()+"/"+data,"rw");
+				RandomAccessFile(userInfo.getPath()+File.separator+data,"rw");
 				//数据连接
-				Socket tempSocket =t.getSocket();
-				InputStream inSocket 
-				= tempSocket.getInputStream(); 
+				InputStream inSocket=t.getSocket().getInputStream();
 				byte byteBuffer[] = new byte[1024]; 
 				int amount; 
 				//这里又会阻塞掉，无法从客户端输出流里面获取数据？是因为客户端没有发送数据么

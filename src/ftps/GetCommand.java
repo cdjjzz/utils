@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.Socket;
@@ -18,7 +19,6 @@ public class GetCommand implements Command{
 	@Override
 	public void getResult(String data, Writer writer, Call t) {
 		UserInfo userInfo=t.currtUser.get();
-		Socket s;
 		String desDir = userInfo.getPath()+File.separator+data;
 		File file = new File(desDir);
 		System.out.println(desDir);
@@ -27,14 +27,14 @@ public class GetCommand implements Command{
 			try {
 				 writer.write("150 open ascii mode...\r\n");
 				 writer.flush();
-				 s = t.getSocket();
-				 BufferedWriter dataWriter = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(),"utf-8"));
-				 byte[] buf = new byte[1024];
 				 InputStream is = new FileInputStream(file); 
-				 while(-1 != is.read(buf)) {
-					 dataWriter.write(new String(buf));
+				 byte[] buf = new byte[1024];
+				 int len=0;
+				 OutputStream outputStream=t.getSocket().getOutputStream();
+				 while((len= is.read(buf))!=-1) {
+					 outputStream.write(buf,0,len);
+					 outputStream.flush();
 				 }
-				 dataWriter.flush();
 				 writer.write("220");
 				 writer.flush();
 			} catch (Exception e) {

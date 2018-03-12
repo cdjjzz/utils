@@ -1,12 +1,9 @@
 
 package ftps;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.net.Socket;
 import java.net.UnknownHostException;
 
 public class DirCommand implements Command{
@@ -17,7 +14,7 @@ public class DirCommand implements Command{
 	@Override
 	public void getResult(String data, Writer writer,Call t) {
 		UserInfo userInfo=t.currtUser.get();
-		String desDir = userInfo.getPath()+data;
+		String desDir = userInfo.getPath()+File.separator+data;
 		System.out.println(desDir);
 		File dir = new File(desDir);
 		if(!dir.exists()) {
@@ -32,7 +29,7 @@ public class DirCommand implements Command{
 		{
 			StringBuilder dirs = new StringBuilder();
 			System.out.println("文件目录如下：");
-			dirs.append("文件目录如下:\n");
+			dirs.append("文件目录如下:\r\n\t");
 			String[] lists= dir.list();
 			String flag = null;
 			for(String name : lists) {
@@ -44,22 +41,17 @@ public class DirCommand implements Command{
 				else {
 					flag = "f";
 				}
-				dirs.append("\t");
 				dirs.append(flag);
 				dirs.append("  ");
 				dirs.append(name);
-				dirs.append("\n");
+				dirs.append("\r\n\t");
 				
 			}
-			
-			//开启数据连接，将数据发送给客户端，这里需要有端口号和ip地址
-			 Socket s=t.getSocket();
 			try {
 				 writer.write("150 open ascii mode...\r\n");
 				 writer.flush();
-				 BufferedWriter dataWriter = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(),"utf-8"));
-				 dataWriter.write(dirs.toString());
-				 dataWriter.flush();
+				 writer.write(dirs.toString());
+				 writer.flush();
 				 writer.write("220 transfer complete...\r\n");
 				 writer.flush();
 			} catch (NumberFormatException e) {
