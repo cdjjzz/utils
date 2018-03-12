@@ -25,6 +25,10 @@ public class CommandFactory {
 				
 				case STOR:return new StoreCommand();
 				
+				case SHOW:return new UserManagerCommand();
+				
+				case EXIT:return new LoginOutCommand();
+				
 				default :return null;
 			}
 		} catch (Exception e) {

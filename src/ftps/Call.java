@@ -58,7 +58,8 @@ public class Call implements Callable<Socket>{
 	                                 }  
 	                                 if(commandSolver instanceof UserCommand 
 	                               		  || commandSolver instanceof PassCommand
-	                               		  || commandSolver instanceof QuitCommand) {  
+	                               		  || commandSolver instanceof QuitCommand
+	                               		  || commandSolver instanceof UserManagerCommand) {  
 	                                         commandSolver.getResult(data, writer,this);  
 	                                     }else{  
 	                                    if(isLogin()){

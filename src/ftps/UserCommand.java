@@ -8,6 +8,10 @@ public class UserCommand implements Command{
 
 	@Override
 	public void getResult(String data, Writer writer, Call t) {
+		UserInfo u=t.currtUser.get();
+		if(u!=null){
+			 write(writer, "已登录用户："+u.getName()+",请退出后操作。");
+		}
 		Iterator<UserInfo> userInfos=GlobaInfo.logined.iterator();
 		String response="";
 		while(userInfos.hasNext()){
