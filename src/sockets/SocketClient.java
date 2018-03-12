@@ -24,11 +24,14 @@ public class SocketClient {
 			String host=Infos.getInfoByKey("host");
 			int port=Infos.getInfoByKey(new LocalString("ftp_port"));
 			socket=new Socket();//连接服务器
-			socket.setSoTimeout(1000000000);
+			/**
+			 * 如果发送数据超过ReceiveBufferSize，开启防火墙可能会抛出Connection reset,关闭防火墙即可
+			 */
+	//		socket.setSoTimeout(1000000000);
 	//  	socket.setReceiveBufferSize(1000000000);
 	//		socket.setTcpNoDelay(true);
 			//socket.setSoLinger(false, 0);
-			socket.connect(new InetSocketAddress(host, port),1000000000);
+			socket.connect(new InetSocketAddress(host, port));
 			readMsg();
 			writeMsg();
 		} catch (UnknownHostException e) {
@@ -53,6 +56,7 @@ public class SocketClient {
 						int len=0;
 						while((len=inputStream.read(b))!=-1){
 							System.out.println(new String(b,0,len));
+							System.out.println(len);
 						}
 					} catch (IOException e) {
 						e.printStackTrace();
