@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Writer;
 
 /**
@@ -26,10 +25,9 @@ public class GetCommand implements Command{
 				 InputStream is = new FileInputStream(file); 
 				 byte[] buf = new byte[1024];
 				 int len=0;
-				 OutputStream outputStream=t.getSocket().getOutputStream();
 				 while((len= is.read(buf))!=-1) {
-					 outputStream.write(buf,0,len);
-					 outputStream.flush();
+					 writer.write(new String(buf,0,len)+"\r\n");
+					 writer.flush();
 				 }
 				 writer.write("220");
 				 writer.flush();

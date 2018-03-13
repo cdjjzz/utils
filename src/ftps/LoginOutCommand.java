@@ -14,7 +14,7 @@ public class LoginOutCommand implements Command {
 			userInfo.setPath(GlobaInfo.rootPath);
 			GlobaInfo.no_login.add(userInfo);
 			t.currtUser.set(null);
-			writer.write("byebye\r\n");
+			writer.write("byebye£º"+userInfo.getName()+"\r\n");
 			writer.flush();
 		} catch (Exception e) {
 		}

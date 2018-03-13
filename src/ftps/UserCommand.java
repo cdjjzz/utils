@@ -11,6 +11,7 @@ public class UserCommand implements Command{
 		UserInfo u=t.currtUser.get();
 		if(u!=null){
 			 write(writer, "已登录用户："+u.getName()+",请退出后操作。");
+			 return;
 		}
 		Iterator<UserInfo> userInfos=GlobaInfo.logined.iterator();
 		String response="";
