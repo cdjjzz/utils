@@ -4,7 +4,7 @@ public enum CommandType {
 	USER("USER"),PASS("PASS"),LIST("LIST"),
 	PORT("PORT"),QUIT("QUIT"),CWD("CWD"),
 	GET("GET"),STOR("STOR"),LS("LS"),
-	SHOW("SHOW"),EXIT("EXIT");
+	SHOW("SHOW"),EXIT("EXIT"),MKD("MKD");
 	
 	private String value;
 

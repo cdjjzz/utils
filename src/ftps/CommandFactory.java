@@ -29,6 +29,8 @@ public class CommandFactory {
 				
 				case EXIT:return new LoginOutCommand();
 				
+				case MKD:return new MkdCommand();
+				
 				default :return null;
 			}
 		} catch (Exception e) {
