@@ -33,6 +33,7 @@ public class UserManagerCommand implements Command{
 					sb.append(userInfo.getName()+"\t"+userInfo.getLogin_time()+"\t"+userInfo.getPath()+"\t"+userInfo.isLogined()+"\r\n\t");
 				}
 			}
+			sb.append("\r\n");
 			writer.write(sb.toString());
 			writer.flush();
 		

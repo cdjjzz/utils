@@ -3,6 +3,7 @@ package ftps;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
@@ -17,6 +18,8 @@ public class Call implements Callable<Socket>{
 	
 	public  ThreadLocal<UserInfo> currtUser =new ThreadLocal<UserInfo>();  
 	
+	private InputStream inputStream;  
+	
 	public Call(Socket socket) {
 		this.socket=socket;
 	}
@@ -24,9 +27,10 @@ public class Call implements Callable<Socket>{
 	@Override
 	public Socket call() throws Exception {
 		 System.out.println("hello");  
-         BufferedReader reader;  
+         
         try {  
-              reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));    
+        	  inputStream=socket.getInputStream();
+              BufferedReader  reader = new BufferedReader(new InputStreamReader(inputStream));    
               Writer writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"utf-8"));  
               while(true) {  
                   //第一次访问，输入流里面是没有东西的，所以会阻塞住  
@@ -48,7 +52,7 @@ public class Call implements Callable<Socket>{
 	                                 String[] datas = command.split(" ");  
 	                                 Command commandSolver = CommandFactory.createCommand(datas[0]);   
 	                                 if(commandSolver==null){
-	                               	  writer.write("532 命名错误\r\n");
+	                               	  writer.write("532");
 	                               	  writer.flush();  
 	                                 }else{
 	                                 //登录验证,在没有登录的情况下，无法使用除了user,pass,quit之外的命令  
@@ -67,7 +71,7 @@ public class Call implements Callable<Socket>{
 	                                    }else{
 	                                    	System.out.println("no_login");
 	                                   	 currtUser.set(null);
-	                                   	 writer.write("532 执行该命令需要登录，请登录后再执行相应的操作\r\n");  
+	                                   	 writer.write("532");  
 	                                        writer.flush();   
 	                                    }
 	                                 }  
@@ -112,6 +116,17 @@ public class Call implements Callable<Socket>{
 	public void setSocket(Socket socket) {
 		this.socket = socket;
 	}
+
+	public InputStream getInputStream() {
+		return inputStream;
+	}
+
+	public void setInputStream(InputStream inputStream) {
+		this.inputStream = inputStream;
+	}
+
+	
+	
 	
 	
 }

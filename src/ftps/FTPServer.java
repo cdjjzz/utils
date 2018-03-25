@@ -18,7 +18,6 @@ public class FTPServer {
 		while(true){
 			try {
 				Socket socket=serverSocket.accept();
-				socket.setSoTimeout(1000000000);
 				executorService.submit(new  Call(socket));
 			} catch (Exception e) {
 			}

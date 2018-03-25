@@ -22,6 +22,11 @@ public class UserInfo {
 	 */
 	private long login_time;
 	
+	private String host;
+	
+	
+	private int port;
+	
 	
 	public String getName() {
 		return name;
@@ -53,6 +58,19 @@ public class UserInfo {
 	public void setLogin_time(long login_time) {
 		this.login_time = login_time;
 	}
+	public String getHost() {
+		return host;
+	}
+	public void setHost(String host) {
+		this.host = host;
+	}
+	public int getPort() {
+		return port;
+	}
+	public void setPort(int port) {
+		this.port = port;
+	}
+	
 	
 	
 	
