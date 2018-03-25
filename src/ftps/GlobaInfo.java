@@ -12,7 +12,7 @@ import java.util.Properties;
  */
 public  class GlobaInfo {
 	
-	 public static String rootPath="D:/app";
+	 public static String rootPath="D:/";
 	 
 	 public static List<UserInfo> logined=new ArrayList<UserInfo>();
 	 

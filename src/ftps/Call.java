@@ -65,6 +65,7 @@ public class Call implements Callable<Socket>{
 	                                    if(isLogin()){
 	                                   	 commandSolver.getResult(data, writer,this);  
 	                                    }else{
+	                                    	System.out.println("no_login");
 	                                   	 currtUser.set(null);
 	                                   	 writer.write("532 执行该命令需要登录，请登录后再执行相应的操作\r\n");  
 	                                        writer.flush();   
@@ -92,11 +93,15 @@ public class Call implements Callable<Socket>{
 	}
 	
 	public  boolean isLogin(){
-	  UserInfo  userInfo=currtUser.get();
-	  if(userInfo.isLogined()){
-		  return true;
-	  }
-	  return false;
+		try {
+			 UserInfo  userInfo=currtUser.get();
+			  if(userInfo.isLogined()){
+				  return true;
+			  }
+			  return false;
+		} catch (Exception e) {
+			return false;
+		}
 		
 	}
 
