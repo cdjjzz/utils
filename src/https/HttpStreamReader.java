@@ -17,7 +17,13 @@ public class HttpStreamReader {
      * 响应头结束标识，\r\n\r\n(13,10,13,10)
      */
     public static final byte[] ALL_END = {13, 10, 13, 10};
- 
+    
+    /**
+     * 读取1024字节
+     * @param in
+     * @return
+     * @throws IOException
+     */
     public static byte[] getBytes(InputStream in) throws IOException {
         byte[] buffer = new byte[1024];
         int len = 0;
@@ -37,11 +43,21 @@ public class HttpStreamReader {
         System.arraycopy(buffer, 0, result, 0, ind);
         return result;
     }
-     
+    /**
+     * 读取头部
+     * @param in
+     * @return
+     * @throws IOException
+     */
     public static byte[] readHeaders(InputStream in) throws IOException {
         return read(in, ALL_END);
     }
-     
+     /**
+      * 读取一行
+      * @param in
+      * @return
+      * @throws IOException
+      */
     public static byte[] readLine(InputStream in) throws IOException {
         return read(in, LINE_END);
     }
