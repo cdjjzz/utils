@@ -121,11 +121,15 @@ public class HttpUtils {
 			String s=headers_str[i];
 			String ss[]=s.split(":");
 			System.out.println(s);
-			respHeaders.put(ss[0], ss[1]);
+			respHeaders.put(ss[0], ss[1].trim());
 		}
 	}
 	/**
      * 分块读取
+     * 服务器没法提前知道资源的大小，或者不愿意花费资源提前计算资源大小
+     * ，就会把http回复报文中加一个header叫Transfer-Encoding:chunked，
+     * 就是分块传输的意思。每一块都使用固定的格式，前边是块的大小，后面是数据，
+     * 然后最后一块大小是0。这样客户端解析的时候就需要注意去掉一些无用的字段。
      * @param in
      * @return
      * @throws IOException
@@ -139,9 +143,25 @@ public class HttpUtils {
             byte[] cnt = new byte[len];
             in.read(cnt);
             content.append(new String(cnt, charset));
+            //换行\r\n
             in.skip(2);
         }
          
+        return content.toString();
+    }
+    /**
+     * 读取主体数据，通过Connection：close 关闭连接
+     * @param in
+     * @return
+     * @throws IOException
+     */
+    private String readInput(InputStream in) throws IOException{
+    	StringBuilder content = new StringBuilder("");
+        byte b[]=new byte[1024];
+        int l=-1;
+        while ((l=in.read(b))!=-1) {
+        	content.append(new String(b,0,l,charset));
+        }
         return content.toString();
     }
 	public String sendGet() throws Exception{
@@ -160,18 +180,20 @@ public class HttpUtils {
 			readRespHeaders(inputStream);
 			String body = null;
 			String content=respHeaders.get("Content-Encoding");
-			System.out.println(content);
-			if(content!=null&&content.trim().equals("gzip")){
-				inputStream= new GZIPInputStream(inputStream); 
-			}else if(content.equals("deflate")){
+			if(content!=null&&content.equals("gzip")){
+				if(inputStream instanceof GZIPInputStream){
+					inputStream= new GZIPInputStream(inputStream); 
+				}
 			}
 	        if (respHeaders.containsKey("Transfer-Encoding")) {
 	            body = readChunked(inputStream);
-	        } else {
+	        } else if(content.equals("")){//未压缩才能通过Content-Length读取主体
 	            int bodyLen = Integer.valueOf(respHeaders.get("Content-Length"));
 	            byte[] bodyBts = new byte[bodyLen];
 	            inputStream.read(bodyBts);
 	            body = new String(bodyBts, charset);
+	        }else{
+	        	body=readInput(inputStream);
 	        }
 	        return body;
 		} catch (Exception e) {
