@@ -49,7 +49,7 @@ public class HttpStreamReader {
      * @return
      * @throws IOException
      */
-    public static byte[] readHeaders(InputStream in) throws IOException {
+    public static String readHeaders(InputStream in) throws IOException {
         return read(in, ALL_END);
     }
      /**
@@ -58,24 +58,29 @@ public class HttpStreamReader {
       * @return
       * @throws IOException
       */
-    public static byte[] readLine(InputStream in) throws IOException {
+    public static String readLine(InputStream in) throws IOException {
         return read(in, LINE_END);
     }
      
-    public static byte[] read(InputStream in, byte[] endFlag) throws IOException {
-    	 byte[] buffer = new byte[1024];
+    public static String read(InputStream in, byte[] endFlag) throws IOException {
          int ind = 0;
          int bt = 0;
-         while ((bt = in.read()) != -1){ 
-             buffer[ind] = (byte)bt;
-             if (isTailEqual(buffer, ind, endFlag))
+         StringBuilder sb=new StringBuilder();
+         byte buffer[]=new byte[1024];
+    	 while ((bt = in.read()) != -1){ 
+    		 if(ind==1024){
+    			 sb.append(new String(buffer,"utf-8"));
+    			 ind=0;
+    		 }
+    		 buffer[ind]=(byte)bt;
+			 if (isTailEqual(buffer, ind, endFlag))
                  break;
              ind ++;
+            
          }
-         int newLen = ind + 1 - endFlag.length;
-         byte[] result = new byte[newLen];
-         System.arraycopy(buffer, 0, result, 0, newLen);
-         return result;
+    	 int newLen = ind + 1 - endFlag.length;
+    	 sb.append(new String(buffer,0,newLen,"utf-8"));
+         return sb.toString();
     }
      
     /**

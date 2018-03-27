@@ -40,7 +40,7 @@ public class HttpUtils {
 	private  void initRequestHeader(){
 		headers.put("Connection", "keep-alive");
         headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-        //headers.put("Accept-Encoding", "gzip,deflate");
+        headers.put("Accept-Encoding", "gzip");
         headers.put("Accept-Language", "zh-CN,zh");
         headers.put("Content-Type", "text/html;charset=utf-8");
 	}
@@ -111,8 +111,7 @@ public class HttpUtils {
 	 * 读取头部
 	 */
 	private void readRespHeaders(InputStream in) throws Exception{
-		byte[] headers=HttpStreamReader.readHeaders(in);
-		String sss=new String(headers,charset);
+		String sss=HttpStreamReader.readHeaders(in);
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
 		code=Integer.valueOf(resphead[1]);
@@ -137,14 +136,14 @@ public class HttpUtils {
     private  String readChunked(InputStream in) throws IOException {
         StringBuilder content = new StringBuilder("");
         String lenStr = "0";
-        while (!(lenStr = new String(HttpStreamReader.readLine(in))).equals("0")) {
+        while (!(lenStr = HttpStreamReader.readLine(in)).equals("")) {
+        	int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
         	//一块的长度
-            int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
             byte[] cnt = new byte[len];
             in.read(cnt);
-            content.append(new String(cnt, charset));
-            //换行\r\n
+            content.append(new String(cnt,0,len, charset));
             in.skip(2);
+             //in.skip(len);
         }
          
         return content.toString();
@@ -159,9 +158,12 @@ public class HttpUtils {
     	StringBuilder content = new StringBuilder("");
         byte b[]=new byte[1024];
         int l=-1;
-        while ((l=in.read(b))!=-1) {
-        	content.append(new String(b,0,l,charset));
-        }
+        try {
+        	 while ((l=in.read(b))!=-1) {
+             	content.append(new String(b,0,l,charset));
+             }
+		} catch (Exception e) {
+		}
         return content.toString();
     }
 	public String sendGet() throws Exception{
@@ -181,13 +183,12 @@ public class HttpUtils {
 			String body = null;
 			String content=respHeaders.get("Content-Encoding");
 			if(content!=null&&content.equals("gzip")){
-				if(inputStream instanceof GZIPInputStream){
-					inputStream= new GZIPInputStream(inputStream); 
-				}
+				System.out.println(inputStream);
+					inputStream= new GZIPInputStream(socket.getInputStream()); 
 			}
 	        if (respHeaders.containsKey("Transfer-Encoding")) {
 	            body = readChunked(inputStream);
-	        } else if(content.equals("")){//未压缩才能通过Content-Length读取主体
+	        } else if(content==null||"".equals(content)){//未压缩才能通过Content-Length读取主体
 	            int bodyLen = Integer.valueOf(respHeaders.get("Content-Length"));
 	            byte[] bodyBts = new byte[bodyLen];
 	            inputStream.read(bodyBts);
@@ -197,6 +198,7 @@ public class HttpUtils {
 	        }
 	        return body;
 		} catch (Exception e) {
+			e.printStackTrace();
 			return null;
 		}finally{
 			if(outputStream!=null){
@@ -257,9 +259,16 @@ public class HttpUtils {
 		return respMsg;
 	}
 	public static void main(String[] args) throws Exception{
-		HttpUtils httpUtils=new HttpUtils("www.baidu.com");
-		String  text=httpUtils.sendGet();
-		System.out.println(text);
+		String  text="";
+		try {
+			HttpUtils httpUtils=new HttpUtils("www.baidu.com");
+			text=httpUtils.sendGet();
+			//System.out.println(text);
+		} catch (Exception e) {
+			System.out.println(text);
+			// TODO: handle exception
+		}
+		
 	}
 	
 	
