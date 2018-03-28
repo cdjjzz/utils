@@ -3,8 +3,10 @@ package https;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -40,9 +42,11 @@ public class HttpUtils {
 	private  void initRequestHeader(){
 		headers.put("Connection", "keep-alive");
         headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-        headers.put("Accept-Encoding", "gzip");
+        //headers.put("Accept-Encoding", "gzip,deflate");
         headers.put("Accept-Language", "zh-CN,zh");
         headers.put("Content-Type", "text/html;charset=utf-8");
+        //headers.put("Upgrade-Insecure-Requests", "1");
+        //headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
 	}
 	/**
 	 * 解析url 构建socket 连接
@@ -90,7 +94,7 @@ public class HttpUtils {
 	    throws Exception{
 		StringBuilder sb=new StringBuilder(request+"\r\n");
 		for(Entry<String, String> entry:headers.entrySet()){
-			sb.append(entry.getKey()+":"+entry.getValue()+"\r\n");
+			sb.append(entry.getKey()+": "+entry.getValue()+"\r\n");
 		}
 		if(json!=null){
 			sb.append(json);
@@ -110,7 +114,7 @@ public class HttpUtils {
 	/**
 	 * 读取头部
 	 */
-	private void readRespHeaders(InputStream in) throws Exception{
+	public void readRespHeaders(InputStream in) throws Exception{
 		String sss=HttpStreamReader.readHeaders(in);
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
@@ -133,20 +137,29 @@ public class HttpUtils {
      * @return
      * @throws IOException
      */
-    private  String readChunked(InputStream in) throws IOException {
+	public  String readChunked(InputStream in) throws Exception {
         StringBuilder content = new StringBuilder("");
         String lenStr = "0";
-        while (!(lenStr = HttpStreamReader.readLine(in)).equals("0")) {
-        	GZIPInputStream gzipInputStream=new GZIPInputStream(in);
+        byte b[]=new byte[1024];
+        int ind=0;
+        //单字节读取
+        while (!(lenStr = new String(HttpStreamReader.readLine(in))).equals("0")) {
         	int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
         	//一块的长度
-            byte[] cnt = new byte[len];
-            gzipInputStream.read(cnt);
-            content.append(new String(cnt,0,len, charset));
-            gzipInputStream.skip(2);
-             //in.skip(len);
+        	int l=0;
+        	int bt=0;
+        	while((bt=in.read())!=-1){
+        		if(l==len)break;
+        		if(ind==1024){
+        			content.append(new String(b,"utf-8"));
+       			 	ind=0;
+       		 	}
+        		b[ind++]=(byte)bt;
+        		l++;
+        	};
+            in.skip(2);
         }
-         
+        content.append(new String(b,0,ind,"utf-8"));
         return content.toString();
     }
     /**
@@ -155,7 +168,7 @@ public class HttpUtils {
      * @return
      * @throws IOException
      */
-    private String readInput(InputStream in) throws IOException{
+    public String readInput(InputStream in) throws IOException{
     	StringBuilder content = new StringBuilder("");
         byte b[]=new byte[1024];
         int l=-1;
@@ -258,10 +271,12 @@ public class HttpUtils {
 	public static void main(String[] args) throws Exception{
 		String  text="";
 		try {
-			HttpUtils httpUtils=new HttpUtils("www.baidu.com");
+			HttpUtils httpUtils=new HttpUtils("www.qq.com");
 			text=httpUtils.sendGet();
-			System.out.println(text);
+			//System.out.println(text);
+			System.out.println(httpUtils.getRespHeaders("Transfer-Encoding"));
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.out.println(text);
 			// TODO: handle exception
 		}
