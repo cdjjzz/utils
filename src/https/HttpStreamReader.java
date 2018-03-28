@@ -59,7 +59,7 @@ public class HttpStreamReader {
       * @throws IOException
       */
     public static String readLine(InputStream in) throws IOException {
-        return read(in, LINE_END);
+        return read(in,LINE_END);
     }
      
     public static String read(InputStream in, byte[] endFlag) throws IOException {

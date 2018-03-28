@@ -136,13 +136,14 @@ public class HttpUtils {
     private  String readChunked(InputStream in) throws IOException {
         StringBuilder content = new StringBuilder("");
         String lenStr = "0";
-        while (!(lenStr = HttpStreamReader.readLine(in)).equals("")) {
+        while (!(lenStr = HttpStreamReader.readLine(in)).equals("0")) {
+        	GZIPInputStream gzipInputStream=new GZIPInputStream(in);
         	int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
         	//一块的长度
             byte[] cnt = new byte[len];
-            in.read(cnt);
+            gzipInputStream.read(cnt);
             content.append(new String(cnt,0,len, charset));
-            in.skip(2);
+            gzipInputStream.skip(2);
              //in.skip(len);
         }
          
@@ -182,10 +183,6 @@ public class HttpUtils {
 			readRespHeaders(inputStream);
 			String body = null;
 			String content=respHeaders.get("Content-Encoding");
-			if(content!=null&&content.equals("gzip")){
-				System.out.println(inputStream);
-					inputStream= new GZIPInputStream(socket.getInputStream()); 
-			}
 	        if (respHeaders.containsKey("Transfer-Encoding")) {
 	            body = readChunked(inputStream);
 	        } else if(content==null||"".equals(content)){//未压缩才能通过Content-Length读取主体
@@ -263,7 +260,7 @@ public class HttpUtils {
 		try {
 			HttpUtils httpUtils=new HttpUtils("www.baidu.com");
 			text=httpUtils.sendGet();
-			//System.out.println(text);
+			System.out.println(text);
 		} catch (Exception e) {
 			System.out.println(text);
 			// TODO: handle exception
