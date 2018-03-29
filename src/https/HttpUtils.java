@@ -1,12 +1,12 @@
 package https;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -19,7 +19,7 @@ public class HttpUtils {
     private int readTimeout = 5000;     //读超时时间
     private String host;
     private int port = 80;
-    private String charset = "UTF-8";
+    public static String charset = "utf-8";
     private String resourcePath = "/";//资源路径
     
     private Map<String, String> headers = new HashMap<String, String>();
@@ -42,9 +42,9 @@ public class HttpUtils {
 	private  void initRequestHeader(){
 		headers.put("Connection", "keep-alive");
         headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-        //headers.put("Accept-Encoding", "gzip,deflate");
+        headers.put("Accept-Encoding", "GZIP,deflate,sdch");
         headers.put("Accept-Language", "zh-CN,zh");
-        headers.put("Content-Type", "text/html;charset=utf-8");
+        headers.put("Content-Type", "text/html;"+charset+"");
         //headers.put("Upgrade-Insecure-Requests", "1");
         //headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
 	}
@@ -90,26 +90,19 @@ public class HttpUtils {
 	 * 向服务器发送http 请求头，协议
 	 * @param outputStream
 	 */
-	private void write(OutputStream outputStream,String request,String json,String ...parames)
+	private void write(OutputStream outputStream,String request,String json)
 	    throws Exception{
 		StringBuilder sb=new StringBuilder(request+"\r\n");
 		for(Entry<String, String> entry:headers.entrySet()){
 			sb.append(entry.getKey()+": "+entry.getValue()+"\r\n");
 		}
-		if(json!=null){
+		sb.append("\r\n");
+		if(json!=null&&request.contains("POST")){
 			sb.append(json);
 		}
-		if(parames!=null&&parames.length>0){
-			if((parames.length&1)!=0){
-				throw new Exception("请输入name和value");
-			}
-			for(int i=0;i<parames.length;i+=2){
-				sb.append(parames[i]+"="+parames[i+1]);
-			}
-		}
-		sb.append("\r\n");
 		System.out.println(sb.toString());
 		outputStream.write(sb.toString().getBytes(charset));
+		outputStream.flush();
 	}
 	/**
 	 * 读取头部
@@ -125,6 +118,12 @@ public class HttpUtils {
 			String ss[]=s.split(":");
 			System.out.println(s);
 			respHeaders.put(ss[0], ss[1].trim());
+			if(s.toLowerCase().contains("gb2312")){
+				charset="gb2312";
+			}
+			if(s.toLowerCase().contains("iso-8859-1")){
+				charset="iso-8859-1";
+			}
 		}
 	}
 	/**
@@ -140,26 +139,36 @@ public class HttpUtils {
 	public  String readChunked(InputStream in) throws Exception {
         StringBuilder content = new StringBuilder("");
         String lenStr = "0";
-        byte b[]=new byte[1024];
         int ind=0;
         //单字节读取
         while (!(lenStr = new String(HttpStreamReader.readLine(in))).equals("0")) {
         	int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
+        	byte b[]=new byte[len];
         	//一块的长度
         	int l=0;
         	int bt=0;
         	while((bt=in.read())!=-1){
         		if(l==len)break;
-        		if(ind==1024){
-        			content.append(new String(b,"utf-8"));
-       			 	ind=0;
-       		 	}
         		b[ind++]=(byte)bt;
         		l++;
         	};
-            in.skip(2);
+        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+        		GZIPInputStream gzin = new GZIPInputStream(new ByteArrayInputStream(b));
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buf = new byte[1024];
+                int count = 0;
+                while ((count = gzin.read(buf)) != -1) {
+                    baos.write(buf, 0, count);
+                }
+                baos.close();
+                gzin.close();
+                content.append(new String(baos.toByteArray(),charset));
+        	 }else{
+        		 content.append(new String(b,charset));
+        	 }
+             
+             in.skip(2);
         }
-        content.append(new String(b,0,ind,"utf-8"));
         return content.toString();
     }
     /**
@@ -180,30 +189,108 @@ public class HttpUtils {
 		}
         return content.toString();
     }
-	public String sendGet() throws Exception{
+    
+    public String sendGet(String ... parames) throws Exception{
+    	return sendByGet(parames);
+    }
+    /**
+     * 无参数
+     * @return
+     * @throws Exception
+     */
+    public String sendGet() throws Exception{
+    	return sendByGet();
+    }
+    
+	private  String sendByGet(String ... parames) throws Exception{
 		OutputStream outputStream=null;
 		InputStream inputStream=null;
 		try {
-			//new 套件地址
+			//new 套接地址
 			inetSocketAddress=new InetSocketAddress(host, port);
 			socket=new Socket();
 		     //将套接地址绑定在套接字中，并设置连接，读取时间
 			socket.connect(inetSocketAddress, connectTimeout);
 			socket.setSoTimeout(readTimeout);
 			outputStream=socket.getOutputStream();
+			appendUrl(parames);
 			write(outputStream,"GET "+resourcePath+" HTTP/1.1",null);
 			inputStream=socket.getInputStream();
 			readRespHeaders(inputStream);
 			String body = null;
-			String content=respHeaders.get("Content-Encoding");
 	        if (respHeaders.containsKey("Transfer-Encoding")) {
 	            body = readChunked(inputStream);
-	        } else if(content==null||"".equals(content)){//未压缩才能通过Content-Length读取主体
-	            int bodyLen = Integer.valueOf(respHeaders.get("Content-Length"));
-	            byte[] bodyBts = new byte[bodyLen];
-	            inputStream.read(bodyBts);
-	            body = new String(bodyBts, charset);
 	        }else{
+	        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+		        	try {
+		        		inputStream= new GZIPInputStream(inputStream);
+					} catch (Exception e) {
+						
+					}
+	        	}
+	        	body=readInput(inputStream);
+	        }
+	        return body;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}finally{
+			if(outputStream!=null){
+				outputStream.close();
+			}
+			if(inputStream!=null){
+				inputStream.close();
+			}
+			if(socket!=null)
+				socket.close();
+		}
+	}
+	/**
+	 * 发送无参请求
+	 * @return
+	 */
+    public String sendPost(String json,String ...parames) throws Exception{
+    	return sendByPost(json,parames);
+    }
+	
+	/**
+	 * 发送无参请求
+	 * @return
+	 */
+    public String sendPost() throws Exception{
+    	return sendByPost(null);
+    }
+	/**
+	 * post 请求
+	 * @return
+	 * @throws Exception
+	 */
+	private String sendByPost(String json,String ...parames)throws Exception{
+		OutputStream outputStream=null;
+		InputStream inputStream=null;
+		try {
+			//new 套接地址
+			inetSocketAddress=new InetSocketAddress(host, port);
+			socket=new Socket();
+		     //将套接地址绑定在套接字中，并设置连接，读取时间
+			socket.connect(inetSocketAddress, connectTimeout);
+			socket.setSoTimeout(readTimeout);
+			outputStream=socket.getOutputStream();
+			appendUrl(parames);
+			write(outputStream,"POST "+resourcePath+" HTTP/1.1",json);
+			inputStream=socket.getInputStream();
+			readRespHeaders(inputStream);
+			String body = null;
+	        if (respHeaders.containsKey("Transfer-Encoding")) {
+	            body = readChunked(inputStream);
+	        }else{
+	        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+		        	try {
+		        		inputStream= new GZIPInputStream(inputStream);
+					} catch (Exception e) {
+						
+					}
+	        	}
 	        	body=readInput(inputStream);
 	        }
 	        return body;
@@ -222,8 +309,20 @@ public class HttpUtils {
 		}
 	}
 	
-	
-	
+	private void appendUrl(String ...parames)throws Exception{
+		if(parames!=null&&parames.length>0){
+			if(!resourcePath.contains("?")){
+				resourcePath+="?1=1";
+				
+			}
+			if((parames.length&1)!=0){
+				throw new Exception("请输入name和value");
+			}
+			for(int i=0;i<parames.length;i+=2){
+				resourcePath+="&"+parames[i]+"="+parames[i+1];
+			}
+		}
+	}
 	public int getConnectTimeout() {
 		return connectTimeout;
 	}
@@ -261,8 +360,8 @@ public class HttpUtils {
 	public String getCharset() {
 		return charset;
 	}
-	public void setCharset(String charset) {
-		this.charset = charset;
+	public static void setCharset(String charset) {
+		HttpUtils.charset = charset;
 	}
 	
 	public String getRespMsg() {
@@ -271,14 +370,15 @@ public class HttpUtils {
 	public static void main(String[] args) throws Exception{
 		String  text="";
 		try {
-			HttpUtils httpUtils=new HttpUtils("www.qq.com");
-			text=httpUtils.sendGet();
-			//System.out.println(text);
-			System.out.println(httpUtils.getRespHeaders("Transfer-Encoding"));
+			HttpUtils httpUtils=new HttpUtils("www.baidu.com");
+			httpUtils.setHeaders("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");
+			text=httpUtils.sendPost("name=lsf");
+			System.out.println(text);
+			System.out.println(httpUtils.getCode());
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(text);
-			// TODO: handle exception
+			// TODO: handle exception http://www.sina.com.cn/
 		}
 		
 	}

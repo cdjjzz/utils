@@ -1,6 +1,5 @@
 package https;
  
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -70,7 +69,7 @@ public class HttpStreamReader {
          byte buffer[]=new byte[1024];
     	 while ((bt = in.read()) != -1){ 
     		 if(ind==1024){
-    			 sb.append(new String(buffer,"utf-8"));
+    			 sb.append(new String(buffer,HttpUtils.charset));
     			 ind=0;
     		 }
     		 buffer[ind]=(byte)bt;
@@ -80,54 +79,9 @@ public class HttpStreamReader {
             
          }
     	 int newLen = ind + 1 - endFlag.length;
-    	 sb.append(new String(buffer,0,newLen,"utf-8"));
+    	 sb.append(new String(buffer,0,newLen,HttpUtils.charset));
          return sb.toString();
     }
-    public static byte[] chunked(InputStream in) throws Exception {
-        ByteArrayOutputStream tmpos = new ByteArrayOutputStream(4);
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        int data = -1;
-        int[] aaa = new int[2];
-        byte[] aa = null;
-
-        while ((data = in.read()) >= 0) {
-            aaa[0] = aaa[1];
-            aaa[1] = data;
-            if (aaa[0] == 13 && aaa[1] == 10) {
-                aa = tmpos.toByteArray();
-                int num = 0;
-                try {
-                    num = Integer.parseInt(new String(aa, 0, aa.length - 1)
-                            .trim(), 16);
-                } catch (Exception e) {
-                    System.out.println("aa.length:" + aa.length);
-                    e.printStackTrace();
-                }
-
-                if (num == 0) {
-
-                    in.read();
-                    in.read();
-                    return bytes.toByteArray();
-                }
-                aa = new byte[num];
-                int sj = 0, ydlen = num, ksind = 0;
-                while ((sj = (in.read(aa, ksind, ydlen))) < ydlen) {
-                    ydlen -= sj;
-                    ksind += sj;
-                }
-
-                bytes.write(aa);
-                in.read();
-                in.read();
-                tmpos.reset();
-            } else {
-                tmpos.write(data);
-            }
-        }
-        return tmpos.toByteArray();
-    }
-     
     /**
      * bts的后ends.length个字节是否和ends相等
      * @param bts

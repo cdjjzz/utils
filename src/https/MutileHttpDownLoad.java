@@ -23,7 +23,7 @@ public class MutileHttpDownLoad {
 		MutileHttpDownLoad.localCopy("d:/lsf.txt");
 	}
 	/**
-	 * 多线程远程分段下载
+	 * 多线程远程分段下载 当前不能对分块处理
 	 * @throws Exception
 	 */
 	public static void remoteDown(String path) throws Exception{
@@ -115,7 +115,7 @@ public class MutileHttpDownLoad {
     			});
 			}
             countDownLatch.await();//等待其他线程执行
-            System.out.println("文件下载成功");
+            System.out.println("文件复制成功");
             executorService.shutdown();
 	}
 	
