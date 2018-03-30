@@ -2,9 +2,11 @@ package https;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.HashMap;
@@ -12,15 +14,22 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.zip.GZIPInputStream;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
+
 public class HttpUtils {
 	private Socket socket;
 	private InetSocketAddress inetSocketAddress;
 	private int connectTimeout = 2000;  //链接超时时间
-    private int readTimeout = 5000;     //读超时时间
+    private int readTimeout = 50000;     //读超时时间
     private String host;
     private int port = 80;
     public static String charset = "utf-8";
     private String resourcePath = "/";//资源路径
+    
+    private boolean tls=false;
+    
     
     private Map<String, String> headers = new HashMap<String, String>();
 	
@@ -45,8 +54,8 @@ public class HttpUtils {
         headers.put("Accept-Encoding", "GZIP,deflate,sdch");
         headers.put("Accept-Language", "zh-CN,zh");
         headers.put("Content-Type", "text/html;"+charset+"");
-        //headers.put("Upgrade-Insecure-Requests", "1");
-        //headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
+        headers.put("Upgrade-Insecure-Requests", "1");
+        headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
 	}
 	/**
 	 * 解析url 构建socket 连接
@@ -56,8 +65,15 @@ public class HttpUtils {
 		try {
 			if (url == null || url.length() == 0) 
 	            throw new NullPointerException("uri can not be null");
-	        if (!url.startsWith("http"))
-	            url = "http://" + url;
+			if(url.startsWith("https")){
+				tls=true;
+				port=443;
+			}else{
+					tls=false;
+					port=80;
+				 if (!url.startsWith("http"))
+			            url = "http://" + url;
+			}
 	        String[] parts = url.split("//");
 	         
 	        String mainPart = parts[1];
@@ -80,7 +96,11 @@ public class HttpUtils {
 	        }
 	         
 	        String hostVal = host;
-	        if (port != 80) hostVal += ":" + port;
+	        if(tls){
+	        	if (port != 443) hostVal += ":" + port;
+	        }else{
+	        	if (port != 80) hostVal += ":" + port;
+	        }
 	        headers.put("Host", hostVal);
 		} catch (Exception e) {
 		}
@@ -97,7 +117,7 @@ public class HttpUtils {
 			sb.append(entry.getKey()+": "+entry.getValue()+"\r\n");
 		}
 		sb.append("\r\n");
-		if(json!=null&&request.contains("POST")){
+		if(json!=null&&request.contains("POST")&&headers.get("Content-Type").equals(MimeType.JSON.getValue())){
 			sb.append(json);
 		}
 		System.out.println(sb.toString());
@@ -112,10 +132,12 @@ public class HttpUtils {
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
 		code=Integer.valueOf(resphead[1]);
+		if(resphead.length>2)
 		respMsg=resphead[2];
+		respHeaders.clear();
 		for(int i=1;i<headers_str.length;i++){
 			String s=headers_str[i];
-			String ss[]=s.split(":");
+			String ss[]=s.split(": ");
 			System.out.println(s);
 			respHeaders.put(ss[0], ss[1].trim());
 			if(s.toLowerCase().contains("gb2312")){
@@ -139,36 +161,35 @@ public class HttpUtils {
 	public  String readChunked(InputStream in) throws Exception {
         StringBuilder content = new StringBuilder("");
         String lenStr = "0";
-        int ind=0;
         //单字节读取
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         while (!(lenStr = new String(HttpStreamReader.readLine(in))).equals("0")) {
         	int len = Integer.valueOf(lenStr.toUpperCase(),16);//长度16进制表示
         	byte b[]=new byte[len];
         	//一块的长度
         	int l=0;
         	int bt=0;
+        	int ind=0;
         	while((bt=in.read())!=-1){
         		if(l==len)break;
         		b[ind++]=(byte)bt;
         		l++;
         	};
-        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
-        		GZIPInputStream gzin = new GZIPInputStream(new ByteArrayInputStream(b));
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buf = new byte[1024];
-                int count = 0;
-                while ((count = gzin.read(buf)) != -1) {
-                    baos.write(buf, 0, count);
-                }
-                baos.close();
-                gzin.close();
-                content.append(new String(baos.toByteArray(),charset));
-        	 }else{
-        		 content.append(new String(b,charset));
-        	 }
-             
-             in.skip(2);
+        	while(in.read()!=10);
+        	baos.write(b,0,len);
         }
+		if("gzip".equals(respHeaders.get("Content-Encoding"))){
+		    GZIPInputStream gzin=new GZIPInputStream(new ByteArrayInputStream(baos.toByteArray()));
+		    baos.reset();
+		    byte b[]=new byte[1024];
+		    int count=-1;
+		    while((count=gzin.read(b))!=-1){
+		    	baos.write(b,0,count);
+		    }
+		    baos.close();
+		    gzin.close();
+		}
+		content.append(baos.toString(charset));
         return content.toString();
     }
     /**
@@ -179,16 +200,23 @@ public class HttpUtils {
      */
     public String readInput(InputStream in) throws IOException{
     	StringBuilder content = new StringBuilder("");
-        byte b[]=new byte[1024];
-        int l=-1;
         try {
-        	 while ((l=in.read(b))!=-1) {
-             	content.append(new String(b,0,l,charset));
-             }
+        	 if(respHeaders.containsKey("Content-Length")&&!respHeaders.containsKey("Content-Encoding")){
+        		 byte b[]=new byte[Integer.valueOf(respHeaders.get("Content-Length"))];
+        	     in.read(b);
+        	     content.append(new String(b,charset));
+        	 }else{
+        		 byte b[]=new byte[1024];
+        	     int l=-1;
+	        	 while ((l=in.read(b))!=-1) {
+	             	content.append(new String(b,0,l,charset));
+	             }
+        	 }
 		} catch (Exception e) {
 		}
         return content.toString();
     }
+    
     
     public String sendGet(String ... parames) throws Exception{
     	return sendByGet(parames);
@@ -208,7 +236,11 @@ public class HttpUtils {
 		try {
 			//new 套接地址
 			inetSocketAddress=new InetSocketAddress(host, port);
-			socket=new Socket();
+			if(tls){
+				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
+			}else{
+				socket=new Socket();
+			}
 		     //将套接地址绑定在套接字中，并设置连接，读取时间
 			socket.connect(inetSocketAddress, connectTimeout);
 			socket.setSoTimeout(readTimeout);
@@ -218,22 +250,24 @@ public class HttpUtils {
 			inputStream=socket.getInputStream();
 			readRespHeaders(inputStream);
 			String body = null;
-	        if (respHeaders.containsKey("Transfer-Encoding")) {
-	            body = readChunked(inputStream);
-	        }else{
-	        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
-		        	try {
-		        		inputStream= new GZIPInputStream(inputStream);
-					} catch (Exception e) {
-						
-					}
-	        	}
-	        	body=readInput(inputStream);
-	        }
+			if(String.valueOf(code).startsWith("20")){
+		        if (respHeaders.containsKey("Transfer-Encoding")) {
+		            body = readChunked(inputStream);
+		        }else{
+		        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+			        	try {
+			        		inputStream= new GZIPInputStream(inputStream);
+						} catch (Exception e) {
+							
+						}
+		        	}
+		        	body=readInput(inputStream);
+		        }
+			}
 	        return body;
 		} catch (Exception e) {
 			e.printStackTrace();
-			return null;
+			return "get";
 		}finally{
 			if(outputStream!=null){
 				outputStream.close();
@@ -243,6 +277,12 @@ public class HttpUtils {
 			}
 			if(socket!=null)
 				socket.close();
+			if(respHeaders.containsKey("Location")){
+				initRequestHeader();
+				parseUrL(respHeaders.get("Location"));
+				return sendByGet();
+			}
+			
 		}
 	}
 	/**
@@ -271,7 +311,11 @@ public class HttpUtils {
 		try {
 			//new 套接地址
 			inetSocketAddress=new InetSocketAddress(host, port);
-			socket=new Socket();
+			if(tls){
+				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
+			}else{
+				socket=new Socket();
+			}
 		     //将套接地址绑定在套接字中，并设置连接，读取时间
 			socket.connect(inetSocketAddress, connectTimeout);
 			socket.setSoTimeout(readTimeout);
@@ -281,22 +325,24 @@ public class HttpUtils {
 			inputStream=socket.getInputStream();
 			readRespHeaders(inputStream);
 			String body = null;
-	        if (respHeaders.containsKey("Transfer-Encoding")) {
-	            body = readChunked(inputStream);
-	        }else{
-	        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
-		        	try {
-		        		inputStream= new GZIPInputStream(inputStream);
-					} catch (Exception e) {
-						
-					}
-	        	}
-	        	body=readInput(inputStream);
-	        }
+			if(String.valueOf(code).startsWith("20")){
+		        if (respHeaders.containsKey("Transfer-Encoding")) {
+		            body = readChunked(inputStream);
+		        }else{
+		        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+			        	try {
+			        		inputStream= new GZIPInputStream(inputStream);
+						} catch (Exception e) {
+							
+						}
+		        	}
+		        	body=readInput(inputStream);
+		        }
+			}
 	        return body;
 		} catch (Exception e) {
 			e.printStackTrace();
-			return null;
+			return "post";
 		}finally{
 			if(outputStream!=null){
 				outputStream.close();
@@ -306,6 +352,11 @@ public class HttpUtils {
 			}
 			if(socket!=null)
 				socket.close();
+			if(respHeaders.containsKey("Location")){
+				initRequestHeader();
+				parseUrL(respHeaders.get("Location"));
+				return sendByGet();
+			}
 		}
 	}
 	
@@ -370,11 +421,14 @@ public class HttpUtils {
 	public static void main(String[] args) throws Exception{
 		String  text="";
 		try {
-			HttpUtils httpUtils=new HttpUtils("www.baidu.com");
-			httpUtils.setHeaders("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");
-			text=httpUtils.sendPost("name=lsf");
+			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/saveAtct");
+			httpUtils.setHeaders("Content-Type", MimeType.JSON.getValue());
+			//text=httpUtils.sendPost(null,"{'j_username':'admin','j_password':'123456','j_validcode':'1a'}");
+			text=httpUtils.sendPost("{'atctUuId':'1','atctName':'罗盛丰'}");
+//			text=httpUtils.sendGet();
+//			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/queryRbchByPage?page=1&rows=100");
+//			text=httpUtils.sendGet();
 			System.out.println(text);
-			System.out.println(httpUtils.getCode());
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(text);

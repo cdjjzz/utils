@@ -65,7 +65,7 @@ public class HttpStreamReader {
     public static String read(InputStream in, byte[] endFlag) throws IOException {
          int ind = 0;
          int bt = 0;
-         StringBuilder sb=new StringBuilder("0");
+         StringBuilder sb=new StringBuilder();
          byte buffer[]=new byte[1024];
     	 while ((bt = in.read()) != -1){ 
     		 if(ind==1024){
@@ -79,6 +79,7 @@ public class HttpStreamReader {
             
          }
     	 int newLen = ind + 1 - endFlag.length;
+    	 if(newLen>0)
     	 sb.append(new String(buffer,0,newLen,HttpUtils.charset));
          return sb.toString();
     }
