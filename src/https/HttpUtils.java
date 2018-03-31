@@ -2,11 +2,9 @@ package https;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.HashMap;
@@ -17,7 +15,11 @@ import java.util.zip.GZIPInputStream;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-
+/**
+ * 
+ * @author pet-lsf
+ *
+ */
 public class HttpUtils {
 	private Socket socket;
 	private InetSocketAddress inetSocketAddress;
@@ -28,20 +30,26 @@ public class HttpUtils {
     public static String charset = "utf-8";
     private String resourcePath = "/";//资源路径
     
-    private boolean tls=false;
+    private boolean tls=false;//使用https
     
     
-    private Map<String, String> headers = new HashMap<String, String>();
+    private Map<String, String> headers = new HashMap<String, String>();//请求头
 	
-    private Map<String, String> respHeaders=new HashMap<String,String>();
+    private Map<String, String> respHeaders=new HashMap<String,String>();//返回头
     
-    private int code;
+    private int code;//返回码
     
-    private String respMsg;
+    private String respMsg;//返回消息
     
+    private boolean useProxy=false;
 	
 	
 	public HttpUtils(String url) throws Exception {
+		initRequestHeader();
+		parseUrL(url);
+	}
+	public HttpUtils(String url,Boolean useProxy) throws Exception {
+		this.useProxy=useProxy;
 		initRequestHeader();
 		parseUrL(url);
 	}
@@ -49,8 +57,8 @@ public class HttpUtils {
 	 * 初始化头部
 	 */
 	private  void initRequestHeader(){
-		headers.put("Connection", "keep-alive");
-        headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+		headers.put("Connection", "keep-alvie");
+		headers.put("Accept", "*");
         headers.put("Accept-Encoding", "GZIP,deflate,sdch");
         headers.put("Accept-Language", "zh-CN,zh");
         headers.put("Content-Type", "text/html;"+charset+"");
@@ -90,7 +98,7 @@ public class HttpUtils {
 	                host = ipPort;
 	            }
 	             
-	            resourcePath = mainPart.substring(ipFlag);
+	            resourcePath =mainPart.substring(ipFlag);
 	        } else {
 	            host = mainPart;
 	        }
@@ -116,19 +124,29 @@ public class HttpUtils {
 		for(Entry<String, String> entry:headers.entrySet()){
 			sb.append(entry.getKey()+": "+entry.getValue()+"\r\n");
 		}
-		sb.append("\r\n");
-		if(json!=null&&request.contains("POST")&&headers.get("Content-Type").equals(MimeType.JSON.getValue())){
-			sb.append(json);
+		/**
+		 * post 请求参数
+		 */
+		if(json!=null&&request.contains("POST")){
+			sb.append("Content-Length:"+json.length()+"\r\n");
+			sb.append("\r\n");
+			outputStream.write(sb.toString().getBytes(charset));
+			outputStream.flush();
+			outputStream.write(json.getBytes());
+			outputStream.flush();
+		}else{
+			sb.append("\r\n");
+			outputStream.write(sb.toString().getBytes(charset));
+			outputStream.flush();
 		}
 		System.out.println(sb.toString());
-		outputStream.write(sb.toString().getBytes(charset));
-		outputStream.flush();
 	}
 	/**
 	 * 读取头部
 	 */
 	public void readRespHeaders(InputStream in) throws Exception{
 		String sss=HttpStreamReader.readHeaders(in);
+		System.out.println(sss);
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
 		code=Integer.valueOf(resphead[1]);
@@ -138,8 +156,8 @@ public class HttpUtils {
 		for(int i=1;i<headers_str.length;i++){
 			String s=headers_str[i];
 			String ss[]=s.split(": ");
-			System.out.println(s);
 			respHeaders.put(ss[0], ss[1].trim());
+			//根据返回编码设置全局编码格式
 			if(s.toLowerCase().contains("gb2312")){
 				charset="gb2312";
 			}
@@ -178,6 +196,9 @@ public class HttpUtils {
         	while(in.read()!=10);
         	baos.write(b,0,len);
         }
+        /**
+         * 解压
+         */
 		if("gzip".equals(respHeaders.get("Content-Encoding"))){
 		    GZIPInputStream gzin=new GZIPInputStream(new ByteArrayInputStream(baos.toByteArray()));
 		    baos.reset();
@@ -204,6 +225,7 @@ public class HttpUtils {
         	 if(respHeaders.containsKey("Content-Length")&&!respHeaders.containsKey("Content-Encoding")){
         		 byte b[]=new byte[Integer.valueOf(respHeaders.get("Content-Length"))];
         	     in.read(b);
+        	   //  System.out.println(b.length);
         	     content.append(new String(b,charset));
         	 }else{
         		 byte b[]=new byte[1024];
@@ -235,7 +257,14 @@ public class HttpUtils {
 		InputStream inputStream=null;
 		try {
 			//new 套接地址
-			inetSocketAddress=new InetSocketAddress(host, port);
+			String req="GET "+resourcePath+" HTTP/1.1";
+			if(useProxy){
+				inetSocketAddress=new InetSocketAddress(ProxyHttp.proxyHost,Integer.valueOf(ProxyHttp.proxyPort));
+				req="CONNECT "+resourcePath+" HTTP/1.1";
+			}else{
+				inetSocketAddress=new InetSocketAddress(host, port);
+			}
+			
 			if(tls){
 				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
 			}else{
@@ -246,7 +275,7 @@ public class HttpUtils {
 			socket.setSoTimeout(readTimeout);
 			outputStream=socket.getOutputStream();
 			appendUrl(parames);
-			write(outputStream,"GET "+resourcePath+" HTTP/1.1",null);
+			write(outputStream,req,null);
 			inputStream=socket.getInputStream();
 			readRespHeaders(inputStream);
 			String body = null;
@@ -286,6 +315,15 @@ public class HttpUtils {
 		}
 	}
 	/**
+	 * 
+	 * 在发送post 请求 参数为主体
+	 *  请求头部中给出参数长度
+	 *  post  \r\n 
+	 *  heares  \r\n
+	 *  \r\n
+	 *  parames
+	 * 
+	 * 
 	 * 发送无参请求
 	 * @return
 	 */
@@ -310,7 +348,19 @@ public class HttpUtils {
 		InputStream inputStream=null;
 		try {
 			//new 套接地址
-			inetSocketAddress=new InetSocketAddress(host, port);
+			String req="POST "+resourcePath+" HTTP/1.1";
+			if(useProxy){
+				inetSocketAddress=new InetSocketAddress(ProxyHttp.proxyHost,Integer.valueOf(ProxyHttp.proxyPort));
+				req="CONNECT "+resourcePath+" HTTP/1.1";
+			}else{
+				inetSocketAddress=new InetSocketAddress(host, port);
+			}
+			
+			if(tls){
+				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
+			}else{
+				socket=new Socket();
+			}
 			if(tls){
 				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
 			}else{
@@ -321,7 +371,7 @@ public class HttpUtils {
 			socket.setSoTimeout(readTimeout);
 			outputStream=socket.getOutputStream();
 			appendUrl(parames);
-			write(outputStream,"POST "+resourcePath+" HTTP/1.1",json);
+			write(outputStream,req,json);
 			inputStream=socket.getInputStream();
 			readRespHeaders(inputStream);
 			String body = null;
@@ -329,6 +379,7 @@ public class HttpUtils {
 		        if (respHeaders.containsKey("Transfer-Encoding")) {
 		            body = readChunked(inputStream);
 		        }else{
+		        	//未使用分块，判断是否需要先解压
 		        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
 			        	try {
 			        		inputStream= new GZIPInputStream(inputStream);
@@ -352,6 +403,9 @@ public class HttpUtils {
 			}
 			if(socket!=null)
 				socket.close();
+			/**
+			 * 如果需要重定向，对新地址发新的请求
+			 */
 			if(respHeaders.containsKey("Location")){
 				initRequestHeader();
 				parseUrL(respHeaders.get("Location"));
@@ -359,7 +413,11 @@ public class HttpUtils {
 			}
 		}
 	}
-	
+	/**
+	 * 路径上拼接参数
+	 * @param parames
+	 * @throws Exception
+	 */
 	private void appendUrl(String ...parames)throws Exception{
 		if(parames!=null&&parames.length>0){
 			if(!resourcePath.contains("?")){
@@ -421,13 +479,16 @@ public class HttpUtils {
 	public static void main(String[] args) throws Exception{
 		String  text="";
 		try {
-			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/saveAtct");
-			httpUtils.setHeaders("Content-Type", MimeType.JSON.getValue());
-			//text=httpUtils.sendPost(null,"{'j_username':'admin','j_password':'123456','j_validcode':'1a'}");
-			text=httpUtils.sendPost("{'atctUuId':'1','atctName':'罗盛丰'}");
+//			HttpUtils httpUtils=new HttpUtils("http://www.tuling123.com/openapi/api");
+//			httpUtils.setHeaders("Content-Type", MimeType.JSON.getValue());
+//			//text=httpUtils.sendPost(null,"{'j_username':'admin','j_password':'123456','j_validcode':'1a'}");
+//			String jsonStr="{\"key\":\"dbc331197a0d43f1b68671240b2e5b5a\",\"info\":\"hhh\",\"userid\":\"224310\"}";
+//			text=httpUtils.sendPost(jsonStr);
 //			text=httpUtils.sendGet();
 //			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/queryRbchByPage?page=1&rows=100");
 //			text=httpUtils.sendGet();
+			HttpUtils httpUtils=new HttpUtils("https://www.baidu.com",true);
+			text=httpUtils.sendByGet();
 			System.out.println(text);
 		} catch (Exception e) {
 			e.printStackTrace();

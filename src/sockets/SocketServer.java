@@ -10,13 +10,11 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-
-
-
-
-
 import java.net.Socket;
 import java.net.URL;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -52,6 +50,14 @@ public class SocketServer {
 							try {
 								String msg=readMsg(socket);
 								HttpURLConnection connection=initHttp();
+								System.out.println(connection);
+								Map<String,List<String>>  map=connection.getRequestProperties();
+								for(Entry<String, List<String>> entry:map.entrySet()){
+									System.out.println(entry);
+									System.out.println(entry.getKey());
+									List<String> values=entry.getValue();
+									for(String v:values)System.out.println(v);
+								}
 								writeMsg(socket,getInfoFormTuling(connection,msg));
 							} catch (Exception e) {
 								e.printStackTrace();
