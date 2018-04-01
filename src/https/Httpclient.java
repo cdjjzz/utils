@@ -4,24 +4,22 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.zip.GZIPInputStream;
 
-import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-/**
- * 
- * @author pet-lsf
- *
- */
-public class HttpUtils {
-	private Socket socket;
+
+
+public class Httpclient {
+	private SocketChannel socket;
 	private InetSocketAddress inetSocketAddress;
 	private int connectTimeout = 2000;  //链接超时时间
     private int readTimeout = 50000;     //读超时时间
@@ -30,8 +28,19 @@ public class HttpUtils {
     public static String charset = "utf-8";
     private String resourcePath = "/";//资源路径
     
+    private Selector selector;
+    
     private boolean tls=false;//使用https
     
+    /**
+     * 接受缓冲区
+     */
+    private ByteBuffer rcBuffer=ByteBuffer.allocate(8192);
+    
+    /**
+     * 发送缓冲区
+     */
+    private ByteBuffer sendBuffer=ByteBuffer.allocate(1024);
     
     private Map<String, String> headers = new HashMap<String, String>();//请求头
 	
@@ -44,11 +53,11 @@ public class HttpUtils {
     private boolean useProxy=false;
 	
 	
-	public HttpUtils(String url) throws Exception {
+	public Httpclient(String url) throws Exception {
 		initRequestHeader();
 		parseUrL(url);
 	}
-	public HttpUtils(String url,Boolean useProxy) throws Exception {
+	public Httpclient(String url,Boolean useProxy) throws Exception {
 		this.useProxy=useProxy;
 		initRequestHeader();
 		parseUrL(url);
@@ -57,13 +66,13 @@ public class HttpUtils {
 	 * 初始化头部
 	 */
 	private  void initRequestHeader(){
-		headers.put("Connection", "keep-alvie");
+		headers.put("Connection", "close");
 		headers.put("Accept", "*");
         headers.put("Accept-Encoding", "GZIP,deflate,sdch");
         headers.put("Accept-Language", "zh-CN,zh");
         headers.put("Content-Type", "text/html;"+charset+"");
-        headers.put("Upgrade-Insecure-Requests", "1");
-        headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
+        //headers.put("Upgrade-Insecure-Requests", "1");
+        //headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
 	}
 	/**
 	 * 解析url 构建socket 连接
@@ -118,7 +127,7 @@ public class HttpUtils {
 	 * 向服务器发送http 请求头，协议
 	 * @param outputStream
 	 */
-	private void write(OutputStream outputStream,String request,String json)
+	private void write(String request,String json)
 	    throws Exception{
 		StringBuilder sb=new StringBuilder(request+"\r\n");
 		for(Entry<String, String> entry:headers.entrySet()){
@@ -130,15 +139,16 @@ public class HttpUtils {
 		if(json!=null&&request.contains("POST")){
 			sb.append("Content-Length:"+json.length()+"\r\n");
 			sb.append("\r\n");
-			outputStream.write(sb.toString().getBytes(charset));
-			outputStream.flush();
-			outputStream.write(json.getBytes());
-			outputStream.flush();
+			sb.append(json);
+			
 		}else{
 			sb.append("\r\n");
-			outputStream.write(sb.toString().getBytes(charset));
-			outputStream.flush();
 		}
+		sendBuffer.put(sb.toString().getBytes(charset));
+		sendBuffer.flip();
+		socket.write(sendBuffer);
+		//sendBuffer.flip();
+		socket.register(selector, SelectionKey.OP_READ);
 		System.out.println(sb.toString());
 	}
 	/**
@@ -253,7 +263,6 @@ public class HttpUtils {
     }
     
 	private  String sendByGet(String ... parames) throws Exception{
-		OutputStream outputStream=null;
 		InputStream inputStream=null;
 		try {
 			//new 套接地址
@@ -266,19 +275,39 @@ public class HttpUtils {
 			}
 			
 			if(tls){
-				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
+				//socket=((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket().getChannel();
+				throw new Exception("不支持https请求");
 			}else{
-				socket=new Socket();
+				socket=SocketChannel.open();
 			}
 		     //将套接地址绑定在套接字中，并设置连接，读取时间
-			socket.connect(inetSocketAddress, connectTimeout);
-			socket.setSoTimeout(readTimeout);
-			outputStream=socket.getOutputStream();
+			socket.connect(inetSocketAddress);
+			selector=Selector.open();
+			socket.configureBlocking(false);
+			socket.register(selector, SelectionKey.OP_CONNECT);
+			sendBuffer.clear();
+			rcBuffer.clear();
 			appendUrl(parames);
-			write(outputStream,req,null);
-			inputStream=socket.getInputStream();
+			if(socket.isConnectionPending()){  
+            	socket.finishConnect();  
+            }
+			write(req, null);
+			while(selector.select()<=0);
+			int n=0;
+			String body ="";
+			ByteArrayOutputStream arrayOutputStream=new ByteArrayOutputStream();
+			while(((n=socket.read(rcBuffer)))!=-1){
+				if(n==0)continue;
+				rcBuffer.flip();
+				byte b[]=new byte[rcBuffer.limit()];
+				for (int i = 0; i <b.length; i++) {
+					 b[i]=rcBuffer.get(i);
+				}
+				arrayOutputStream.write(b);
+   			    rcBuffer.clear();
+			}
+			inputStream=new ByteArrayInputStream(arrayOutputStream.toByteArray());
 			readRespHeaders(inputStream);
-			String body = null;
 			if(String.valueOf(code).startsWith("20")){
 		        if (respHeaders.containsKey("Transfer-Encoding")) {
 		            body = readChunked(inputStream);
@@ -291,19 +320,15 @@ public class HttpUtils {
 						}
 		        	}
 		        	body=readInput(inputStream);
-		        }
 			}
+		  }
 	        return body;
 		} catch (Exception e) {
 			e.printStackTrace();
 			return "get";
 		}finally{
-			if(outputStream!=null){
-				outputStream.close();
-			}
-			if(inputStream!=null){
-				inputStream.close();
-			}
+			if(inputStream!=null)inputStream.close();
+			if(selector!=null)selector.close();
 			if(socket!=null)
 				socket.close();
 			if(respHeaders.containsKey("Location")){
@@ -344,7 +369,6 @@ public class HttpUtils {
 	 * @throws Exception
 	 */
 	private String sendByPost(String json,String ...parames)throws Exception{
-		OutputStream outputStream=null;
 		InputStream inputStream=null;
 		try {
 			//new 套接地址
@@ -355,18 +379,38 @@ public class HttpUtils {
 			}else{
 				inetSocketAddress=new InetSocketAddress(host, port);
 			}
+			
 			if(tls){
-				socket=(SSLSocket)((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket();  
+				//socket=((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket().getChannel(); 
+				throw new Exception("不支持https请求");
 			}else{
-				socket=new Socket();
+				socket=SocketChannel.open();
 			}
 		     //将套接地址绑定在套接字中，并设置连接，读取时间
-			socket.connect(inetSocketAddress, connectTimeout);
-			socket.setSoTimeout(readTimeout);
-			outputStream=socket.getOutputStream();
+			socket.connect(inetSocketAddress);
+			socket.configureBlocking(false);
+			selector=Selector.open();
+			socket.register(selector, SelectionKey.OP_CONNECT);
+			sendBuffer.clear();
+			rcBuffer.clear();
 			appendUrl(parames);
-			write(outputStream,req,json);
-			inputStream=socket.getInputStream();
+			if(socket.isConnectionPending())
+				socket.finishConnect();
+			write(req, json);
+			while(selector.select()<=0);
+			int n=0;
+			ByteArrayOutputStream arrayOutputStream=new ByteArrayOutputStream();
+			while((n=socket.read(rcBuffer))!=-1){
+				if(n==0)continue;
+				rcBuffer.flip();
+				byte b[]=new byte[rcBuffer.limit()];
+				for (int i = 0; i <b.length; i++) {
+					 b[i]=rcBuffer.get(i);
+				}
+				arrayOutputStream.write(b);
+   			    rcBuffer.clear();
+			}
+			inputStream=new ByteArrayInputStream(arrayOutputStream.toByteArray());
 			readRespHeaders(inputStream);
 			String body = null;
 			if(String.valueOf(code).startsWith("20")){
@@ -389,12 +433,10 @@ public class HttpUtils {
 			e.printStackTrace();
 			return "post";
 		}finally{
-			if(outputStream!=null){
-				outputStream.close();
-			}
 			if(inputStream!=null){
 				inputStream.close();
 			}
+			if(selector!=null)selector.close();
 			if(socket!=null)
 				socket.close();
 			/**
@@ -473,7 +515,7 @@ public class HttpUtils {
 	public static void main(String[] args) throws Exception{
 		String  text="";
 		try {
-//			HttpUtils httpUtils=new HttpUtils("http://www.tuling123.com/openapi/api");
+//			Httpclient httpUtils=new Httpclient("http://www.tuling123.com/openapi/api");
 //			httpUtils.setHeaders("Content-Type", MimeType.JSON.getValue());
 //			//text=httpUtils.sendPost(null,"{'j_username':'admin','j_password':'123456','j_validcode':'1a'}");
 //			String jsonStr="{\"key\":\"dbc331197a0d43f1b68671240b2e5b5a\",\"info\":\"hhh\",\"userid\":\"224310\"}";
@@ -481,9 +523,9 @@ public class HttpUtils {
 //			text=httpUtils.sendGet();
 //			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/queryRbchByPage?page=1&rows=100");
 //			text=httpUtils.sendGet();
-			HttpUtils httpUtils=new HttpUtils("https://www.baidu.com",true);
-			text=httpUtils.sendByGet();
-			System.out.println(text);
+			Httpclient httpUtils=new Httpclient("www.taobao.cn");
+			text=httpUtils.sendGet();
+			//System.out.println(text);
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(text);
@@ -491,9 +533,4 @@ public class HttpUtils {
 		}
 		
 	}
-	
-	
-	
-	
-
 }
