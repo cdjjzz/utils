@@ -2,10 +2,14 @@ package https;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -32,10 +36,6 @@ public class Httpclient {
     
     private boolean tls=false;//使用https
     
-    /**
-     * 接受缓冲区
-     */
-    private ByteBuffer rcBuffer=ByteBuffer.allocate(8192);
     
     /**
      * 发送缓冲区
@@ -286,27 +286,14 @@ public class Httpclient {
 			socket.configureBlocking(false);
 			socket.register(selector, SelectionKey.OP_CONNECT);
 			sendBuffer.clear();
-			rcBuffer.clear();
 			appendUrl(parames);
 			if(socket.isConnectionPending()){  
             	socket.finishConnect();  
             }
 			write(req, null);
 			while(selector.select()<=0);
-			int n=0;
 			String body ="";
-			ByteArrayOutputStream arrayOutputStream=new ByteArrayOutputStream();
-			while(((n=socket.read(rcBuffer)))!=-1){
-				if(n==0)continue;
-				rcBuffer.flip();
-				byte b[]=new byte[rcBuffer.limit()];
-				for (int i = 0; i <b.length; i++) {
-					 b[i]=rcBuffer.get(i);
-				}
-				arrayOutputStream.write(b);
-   			    rcBuffer.clear();
-			}
-			inputStream=new ByteArrayInputStream(arrayOutputStream.toByteArray());
+			inputStream=Channels.newInputStream(socket);
 			readRespHeaders(inputStream);
 			if(String.valueOf(code).startsWith("20")){
 		        if (respHeaders.containsKey("Transfer-Encoding")) {
@@ -392,25 +379,12 @@ public class Httpclient {
 			selector=Selector.open();
 			socket.register(selector, SelectionKey.OP_CONNECT);
 			sendBuffer.clear();
-			rcBuffer.clear();
 			appendUrl(parames);
 			if(socket.isConnectionPending())
 				socket.finishConnect();
 			write(req, json);
 			while(selector.select()<=0);
-			int n=0;
-			ByteArrayOutputStream arrayOutputStream=new ByteArrayOutputStream();
-			while((n=socket.read(rcBuffer))!=-1){
-				if(n==0)continue;
-				rcBuffer.flip();
-				byte b[]=new byte[rcBuffer.limit()];
-				for (int i = 0; i <b.length; i++) {
-					 b[i]=rcBuffer.get(i);
-				}
-				arrayOutputStream.write(b);
-   			    rcBuffer.clear();
-			}
-			inputStream=new ByteArrayInputStream(arrayOutputStream.toByteArray());
+			inputStream=Channels.newInputStream(socket);
 			readRespHeaders(inputStream);
 			String body = null;
 			if(String.valueOf(code).startsWith("20")){
@@ -523,8 +497,8 @@ public class Httpclient {
 //			text=httpUtils.sendGet();
 //			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/queryRbchByPage?page=1&rows=100");
 //			text=httpUtils.sendGet();
-			Httpclient httpUtils=new Httpclient("www.taobao.cn");
-			text=httpUtils.sendGet();
+//			Httpclient httpUtils=new Httpclient("www.taobao.cn");
+//			text=httpUtils.sendGet();
 			//System.out.println(text);
 		} catch (Exception e) {
 			e.printStackTrace();
