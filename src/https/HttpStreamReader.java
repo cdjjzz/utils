@@ -1,5 +1,6 @@
 package https;
  
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -49,7 +50,7 @@ public class HttpStreamReader {
      * @return
      * @throws IOException
      */
-    public static String readHeaders(InputStream in) throws IOException {
+    public static byte[] readHeaders(InputStream in) throws IOException {
         return read(in, ALL_END);
     }
      /**
@@ -58,18 +59,18 @@ public class HttpStreamReader {
       * @return
       * @throws IOException
       */
-    public static String readLine(InputStream in) throws IOException {
+    public static byte[] readLine(InputStream in) throws IOException {
         return read(in,LINE_END);
     }
      
-    public static String read(InputStream in, byte[] endFlag) throws IOException {
+    public static byte[] read(InputStream in, byte[] endFlag) throws IOException {
          int ind = 0;
          int bt = 0;
-         StringBuilder sb=new StringBuilder();
+         ByteArrayOutputStream arrayOutputStream=new ByteArrayOutputStream();
          byte buffer[]=new byte[1024];
     	 while ((bt = in.read()) != -1){ 
     		 if(ind==1024){
-    			 sb.append(new String(buffer,HttpUtils.charset));
+    			 arrayOutputStream.write(buffer);
     			 ind=0;
     		 }
     		 buffer[ind]=(byte)bt;
@@ -80,8 +81,8 @@ public class HttpStreamReader {
          }
     	 int newLen = ind + 1 - endFlag.length;
     	 if(newLen>0)
-    	 sb.append(new String(buffer,0,newLen,HttpUtils.charset));
-         return sb.toString();
+    	 arrayOutputStream.write(buffer,0,newLen);
+         return arrayOutputStream.toByteArray();
     }
     /**
      * bts的后ends.length个字节是否和ends相等

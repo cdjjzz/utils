@@ -2,23 +2,23 @@ package https;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.zip.GZIPInputStream;
 
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.SSLEngine;
+
 
 
 
@@ -52,7 +52,8 @@ public class Httpclient {
     
     private boolean useProxy=false;
 	
-	
+    public Httpclient() {
+	}
 	public Httpclient(String url) throws Exception {
 		initRequestHeader();
 		parseUrL(url);
@@ -127,7 +128,7 @@ public class Httpclient {
 	 * 向服务器发送http 请求头，协议
 	 * @param outputStream
 	 */
-	private void write(String request,String json)
+	private String write(String request,String json,boolean useTls)
 	    throws Exception{
 		StringBuilder sb=new StringBuilder(request+"\r\n");
 		for(Entry<String, String> entry:headers.entrySet()){
@@ -144,18 +145,24 @@ public class Httpclient {
 		}else{
 			sb.append("\r\n");
 		}
-		sendBuffer.put(sb.toString().getBytes(charset));
-		sendBuffer.flip();
-		socket.write(sendBuffer);
-		//sendBuffer.flip();
-		socket.register(selector, SelectionKey.OP_READ);
-		System.out.println(sb.toString());
+		if(!useTls){
+			sendBuffer.put(sb.toString().getBytes(charset));
+			sendBuffer.flip();
+			socket.write(sendBuffer);
+			//sendBuffer.flip();
+			socket.register(selector, SelectionKey.OP_READ);
+			System.out.println(sb.toString());
+			return null;
+		}else{
+			System.out.println(sb.toString());
+			return sb.toString();
+		}
 	}
 	/**
 	 * 读取头部
 	 */
 	public void readRespHeaders(InputStream in) throws Exception{
-		String sss=HttpStreamReader.readHeaders(in);
+		String sss=new String(HttpStreamReader.readHeaders(in),"gbk");
 		System.out.println(sss);
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
@@ -273,41 +280,79 @@ public class Httpclient {
 			}else{
 				inetSocketAddress=new InetSocketAddress(host, port);
 			}
-			
+			selector=Selector.open();
+			String body ="";
+			appendUrl(parames);
+			sendBuffer.clear();
 			if(tls){
-				//socket=((SSLSocketFactory)SSLSocketFactory.getDefault()).createSocket().getChannel();
-				throw new Exception("不支持https请求");
+				socket=new SSLSocketChanel(SelectorProvider.provider(),selector);
+				//https 
+				SSLSocketChanel socketChanel=((SSLSocketChanel)socket);
+				socketChanel.configureBlocking(false,null);
+				socketChanel.register(selector, SelectionKey.OP_CONNECT,null);
+				socketChanel.connect(inetSocketAddress);
+				SSLEngine sslEngine=socketChanel.getSslEngine();
+				sslEngine.beginHandshake();//开始握手
+				socketChanel.setHsStatus(sslEngine.getHandshakeStatus());
+				sendBuffer.put(write(req, null, true).getBytes(charset));
+				socketChanel.setMyAppData(sendBuffer);
+				while(true){
+				 //多次循环，客户端和服务端交换数据 
+				   selector.select();
+				   Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+				   while (it.hasNext()) {
+	                SelectionKey selectionKey = it.next();
+	                it.remove();
+	                socketChanel.handleSocketEvent(selectionKey);
+	            }
+				 ByteBuffer byteBuffer=socketChanel.getPeerNetData();
+				 ByteArrayInputStream byteArrayInputStream=new 
+						 ByteArrayInputStream(byteBuffer.array());
+				 inputStream=byteArrayInputStream;
+				 readRespHeaders(inputStream);
+					if(String.valueOf(code).startsWith("20")){
+				        if (respHeaders.containsKey("Transfer-Encoding")) {
+				            body = readChunked(inputStream);
+				        }else{
+				        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+					        	try {
+					        		inputStream= new GZIPInputStream(inputStream);
+								} catch (Exception e) {
+									
+								}
+				        	}
+				        	body=readInput(inputStream);
+					}
+					}
+			 }
 			}else{
 				socket=SocketChannel.open();
-			}
-		     //将套接地址绑定在套接字中，并设置连接，读取时间
-			socket.connect(inetSocketAddress);
-			selector=Selector.open();
-			socket.configureBlocking(false);
-			socket.register(selector, SelectionKey.OP_CONNECT);
-			sendBuffer.clear();
-			appendUrl(parames);
-			if(socket.isConnectionPending()){  
-            	socket.finishConnect();  
-            }
-			write(req, null);
-			while(selector.select()<=0);
-			String body ="";
-			inputStream=Channels.newInputStream(socket);
-			readRespHeaders(inputStream);
-			if(String.valueOf(code).startsWith("20")){
-		        if (respHeaders.containsKey("Transfer-Encoding")) {
-		            body = readChunked(inputStream);
-		        }else{
-		        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
-			        	try {
-			        		inputStream= new GZIPInputStream(inputStream);
-						} catch (Exception e) {
-							
-						}
-		        	}
-		        	body=readInput(inputStream);
-			}
+				socket.configureBlocking(false);
+				socket.register(selector, SelectionKey.OP_CONNECT);
+				//将套接地址绑定在套接字中，并设置连接，读取时间
+				socket.connect(inetSocketAddress);
+				// http 处理
+				if(socket.isConnectionPending()){  
+	            	socket.finishConnect();  
+	            }
+				write(req, null,false);
+				while(selector.select()<=0);
+				inputStream=Channels.newInputStream(socket);
+				readRespHeaders(inputStream);
+				if(String.valueOf(code).startsWith("20")){
+			        if (respHeaders.containsKey("Transfer-Encoding")) {
+			            body = readChunked(inputStream);
+			        }else{
+			        	if("gzip".equals(respHeaders.get("Content-Encoding"))){
+				        	try {
+				        		inputStream= new GZIPInputStream(inputStream);
+							} catch (Exception e) {
+								
+							}
+			        	}
+			        	body=readInput(inputStream);
+				}
+				}
 		  }
 	        return body;
 		} catch (Exception e) {
@@ -382,7 +427,7 @@ public class Httpclient {
 			appendUrl(parames);
 			if(socket.isConnectionPending())
 				socket.finishConnect();
-			write(req, json);
+			write(req, json,false);
 			while(selector.select()<=0);
 			inputStream=Channels.newInputStream(socket);
 			readRespHeaders(inputStream);
@@ -500,6 +545,8 @@ public class Httpclient {
 //			Httpclient httpUtils=new Httpclient("www.taobao.cn");
 //			text=httpUtils.sendGet();
 			//System.out.println(text);
+			Httpclient httpclient=new Httpclient("https://www.baidu.com");
+			httpclient.sendGet();
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(text);

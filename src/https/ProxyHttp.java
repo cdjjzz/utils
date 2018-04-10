@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -135,7 +136,7 @@ class ClientHandler implements Callable<Boolean>{
 	 * @throws IOException
 	 */
 	private void parse(InputStream in) throws IOException{
-		String sss=HttpStreamReader.readHeaders(in);
+		String sss=new String(HttpStreamReader.readHeaders(in),HttpUtils.charset);
 		String headers_str[]=sss.split("\r\n");
 		reqLine=headers_str[0];
 		for(int i=1;i<headers_str.length;i++){

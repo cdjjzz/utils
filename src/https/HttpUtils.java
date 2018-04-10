@@ -145,7 +145,7 @@ public class HttpUtils {
 	 * ∂¡»°Õ∑≤ø
 	 */
 	public void readRespHeaders(InputStream in) throws Exception{
-		String sss=HttpStreamReader.readHeaders(in);
+		String sss=new String(HttpStreamReader.readHeaders(in),charset);
 		System.out.println(sss);
 		String headers_str[]=sss.split("\r\n");
 		String resphead[]=headers_str[0].split(" ");
@@ -481,7 +481,7 @@ public class HttpUtils {
 //			text=httpUtils.sendGet();
 //			HttpUtils httpUtils=new HttpUtils("http://127.0.0.1:8099/rbchinfo/queryRbchByPage?page=1&rows=100");
 //			text=httpUtils.sendGet();
-			HttpUtils httpUtils=new HttpUtils("https://www.baidu.com",true);
+			HttpUtils httpUtils=new HttpUtils("https://www.taobao.com",false);
 			text=httpUtils.sendByGet();
 			System.out.println(text);
 		} catch (Exception e) {
