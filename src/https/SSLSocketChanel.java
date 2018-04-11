@@ -34,11 +34,15 @@ public class SSLSocketChanel extends SocketChannel{
 	protected SSLSocketChanel(SelectorProvider provider,Selector selector) throws Exception {
 		super(provider);
 		socketChannel=provider.openSocketChannel();
-		SSLContext sslContext = SSLContext.getInstance("SSL");
+		SSLContext sslContext = SSLContext.getInstance("SSLv3");
         sslContext.init(null, null, null);
         sslEngine = sslContext.createSSLEngine();
         sslEngine.setUseClientMode(true);
         SSLSession session = sslEngine.getSession();
+        String[] supportedProtocols = sslEngine.getSupportedProtocols();
+        for (String protocol : supportedProtocols) {
+        	System.out.println(protocol);
+        }
         myAppData = ByteBuffer.allocate(session.getApplicationBufferSize());
         myNetData = ByteBuffer.allocate(session.getPacketBufferSize());
         peerAppData = ByteBuffer.allocate(session.getApplicationBufferSize());
@@ -141,10 +145,10 @@ public class SSLSocketChanel extends SocketChannel{
 		// TODO Auto-generated method stub
 		
 	}
-	public void configureBlocking(boolean block,String ...parames) throws IOException{
+	public void configureBlocking(boolean block,String parames) throws IOException{
 		socketChannel.configureBlocking(block);
 	}
-	public void register(Selector sel, int ops,String ...parames) throws IOException{
+	public void register(Selector sel, int ops,String parames) throws IOException{
 		socketChannel.register(sel,ops);
 	}
     public  int doHandshake() throws IOException {
@@ -156,32 +160,25 @@ public class SSLSocketChanel extends SocketChannel{
             case NEED_TASK:
                 Runnable runnable;
                 while ((runnable = sslEngine.getDelegatedTask()) != null) {
-                    runnable.run();
+                	runnable.run();
                 }
                 hsStatus = sslEngine.getHandshakeStatus();
                 break;
             case NEED_UNWRAP:
                 count = socketChannel.read(peerNetData);
-                peerNetData.flip();
-                ByteArrayInputStream byteArrayInputStream=new ByteArrayInputStream(peerNetData.array(),
-                		peerNetData.position(), peerNetData.limit());
-                byte[] b=new byte[count];
-                byteArrayInputStream.read(b);
-                System.out.println(new String(b,"gbk"));
                 if (count < 0) {
                     logger.info("no data is read for unwrap.");
                     break;
                 } else {
                     logger.info("data read: " + count);
                 }
-               // peerNetData.flip();
+                peerNetData.flip();
                 peerAppData.clear();
                 do {
                     result = sslEngine.unwrap(peerNetData, peerAppData);
                     logger.info("Unwrapping:\n" + result);
                 } while (result.getStatus() == SSLEngineResult.Status.OK
-                        && result.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP
-                        && result.bytesProduced() == 0);
+                        && result.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP);           
                 if (peerAppData.position() == 0 && result.getStatus() == SSLEngineResult.Status.OK
                         && peerNetData.hasRemaining()) {
                     result = sslEngine.unwrap(peerNetData, peerAppData);
@@ -189,7 +186,6 @@ public class SSLSocketChanel extends SocketChannel{
                 }
                 hsStatus = result.getHandshakeStatus();
                 status = result.getStatus();
-                assert status != status.BUFFER_OVERFLOW : "buffer not overflow." + status.toString();
                 // Prepare the buffer to be written again.
                 peerNetData.compact();
                 // And the app buffer to be read.
@@ -207,6 +203,8 @@ public class SSLSocketChanel extends SocketChannel{
                         break;
                     case BUFFER_UNDERFLOW:
                         break;
+                     default:
+                     	break;
                     }
                 }
                 myNetData.flip();
@@ -217,6 +215,8 @@ public class SSLSocketChanel extends SocketChannel{
                     logger.info("Written data: " + count);
                 }
                 break;
+			default:
+				break;
             }
         }
         return count;
@@ -230,22 +230,27 @@ public class SSLSocketChanel extends SocketChannel{
 		this.sslEngine = sslEngine;
 	}
 	public void handleSocketEvent(SelectionKey key) throws IOException {
+		//if(key.isValid())return;
+		System.out.println(key);
         if (key.isConnectable()) {
-            socketChannel = (SocketChannel) key.channel();
             if (socketChannel.isConnectionPending()) {
             	socketChannel.finishConnect();
             }
             doHandshake();
-            socketChannel.register(selector, SelectionKey.OP_READ);
+            socketChannel.register(selector,SelectionKey.OP_WRITE);
         }
         if (key.isReadable()) {
-        	socketChannel = (SocketChannel) key.channel();
             doHandshake();
+            socketChannel.register(selector, SelectionKey.OP_WRITE);
             if (hsStatus == HandshakeStatus.FINISHED) {
                 logger.info("Client handshake completes... ...");
                 key.cancel();
                 socketChannel.close();
             }
+        }
+        if(key.isWritable()){
+        	doHandshake();
+        	socketChannel.register(selector, SelectionKey.OP_READ);
         }
     }
 
@@ -272,6 +277,23 @@ public class SSLSocketChanel extends SocketChannel{
 	public void setPeerNetData(ByteBuffer peerNetData) {
 		this.peerNetData = peerNetData;
 	}
+
+	public ByteBuffer getMyNetData() {
+		return myNetData;
+	}
+
+	public void setMyNetData(ByteBuffer myNetData) {
+		this.myNetData = myNetData;
+	}
+
+	public ByteBuffer getPeerAppData() {
+		return peerAppData;
+	}
+
+	public void setPeerAppData(ByteBuffer peerAppData) {
+		this.peerAppData = peerAppData;
+	}
+	
 	
 	
 	

@@ -296,6 +296,7 @@ public class Httpclient {
 				socketChanel.setHsStatus(sslEngine.getHandshakeStatus());
 				sendBuffer.put(write(req, null, true).getBytes(charset));
 				socketChanel.setMyAppData(sendBuffer);
+				socketChanel.doHandshake();
 				while(true){
 				 //多次循环，客户端和服务端交换数据 
 				   selector.select();
