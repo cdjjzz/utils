@@ -291,12 +291,9 @@ public class Httpclient {
 				socketChanel.configureBlocking(false,null);
 				socketChanel.register(selector, SelectionKey.OP_CONNECT,null);
 				socketChanel.connect(inetSocketAddress);
-				SSLEngine sslEngine=socketChanel.getSslEngine();
-				sslEngine.beginHandshake();//开始握手
-				socketChanel.setHsStatus(sslEngine.getHandshakeStatus());
-				sendBuffer.put(write(req, null, true).getBytes(charset));
 				socketChanel.setMyAppData(sendBuffer);
-				socketChanel.doHandshake();
+				sendBuffer.put(write(req, null, true).getBytes(charset));
+				//socketChanel.doHandshake();
 				while(true){
 				 //多次循环，客户端和服务端交换数据 
 				   selector.select();

@@ -98,7 +98,14 @@ public class SSLSocketChanel extends SocketChannel{
 
 	@Override
 	public boolean connect(SocketAddress remote) throws IOException {
-		return socketChannel.connect(remote);
+		socketChannel.connect(remote);
+		if(socketChannel.isConnectionPending()){
+			socketChannel.finishConnect();
+		}
+		sslEngine.beginHandshake();
+		hsStatus=sslEngine.getHandshakeStatus();
+		doHandshake();
+		return true;
 	}
 
 	@Override
